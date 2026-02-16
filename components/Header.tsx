@@ -36,12 +36,17 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-blue-600">
+              <Link to="/login" className="text-sm font-medium text-slate-600 hover:text-blue-600 hidden sm:block">
                 Sign In
               </Link>
-              <Link to="/register-doctor" className="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all">
-                Join as Doctor
-              </Link>
+              <div className="flex items-center space-x-3">
+                <Link to="/register-patient" className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                  Sign Up
+                </Link>
+                <Link to="/register-doctor" className="px-4 py-2 rounded-full bg-blue-600 text-white text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                  Doctor Join
+                </Link>
+              </div>
             </>
           )}
         </div>

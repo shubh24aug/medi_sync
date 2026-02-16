@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header.tsx';
+import ProtectedRoute from './components/ProtectedRoute.tsx';
 import Login from './views/Auth/Login.tsx';
 import RegisterDoctor from './views/Auth/RegisterDoctor.tsx';
+import RegisterPatient from './views/Auth/RegisterPatient.tsx';
 import AdminDashboard from './views/Admin/AdminDashboard.tsx';
 import DoctorDashboard from './views/Doctor/DoctorDashboard.tsx';
 import PatientDashboard from './views/Patient/PatientDashboard.tsx';
@@ -40,7 +42,6 @@ const App: React.FC = () => {
         <Header user={user} onLogout={handleLogout} />
         <main className="flex-1 container mx-auto px-4 py-8">
           <Routes>
-            {/* Root path handles initial redirection */}
             <Route path="/" element={
               user ? (
                 user.role === UserRole.ADMIN ? <Navigate to="/admin" /> :
@@ -49,21 +50,34 @@ const App: React.FC = () => {
               ) : <Navigate to="/login" />
             } />
             
-            {/* Login and Register paths redirect to root if already logged in */}
-            <Route path="/login" element={
-              user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />
+            <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />} />
+            <Route path="/register-doctor" element={user ? <Navigate to="/" /> : <RegisterDoctor onLogin={handleLogin} />} />
+            <Route path="/register-patient" element={user ? <Navigate to="/" /> : <RegisterPatient onLogin={handleLogin} />} />
+            
+            <Route path="/admin" element={
+              <ProtectedRoute user={user} allowedRoles={[UserRole.ADMIN]}>
+                <AdminDashboard />
+              </ProtectedRoute>
             } />
-            <Route path="/register-doctor" element={
-              user ? <Navigate to="/" /> : <RegisterDoctor onLogin={handleLogin} />
+
+            <Route path="/doctor" element={
+              <ProtectedRoute user={user} allowedRoles={[UserRole.DOCTOR]}>
+                <DoctorDashboard user={user!} />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/patient" element={
+              <ProtectedRoute user={user} allowedRoles={[UserRole.PATIENT]}>
+                <PatientDashboard user={user!} />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/book/:doctorId" element={
+              <ProtectedRoute user={user} allowedRoles={[UserRole.PATIENT]}>
+                <DoctorBooking user={user!} />
+              </ProtectedRoute>
             } />
             
-            {/* Protected Role-Based Routes */}
-            <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard /> : <Navigate to="/login" />} />
-            <Route path="/doctor" element={user?.role === UserRole.DOCTOR ? <DoctorDashboard user={user} /> : <Navigate to="/login" />} />
-            <Route path="/patient" element={user?.role === UserRole.PATIENT ? <PatientDashboard user={user} /> : <Navigate to="/login" />} />
-            <Route path="/book/:doctorId" element={user?.role === UserRole.PATIENT ? <DoctorBooking user={user} /> : <Navigate to="/login" />} />
-            
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

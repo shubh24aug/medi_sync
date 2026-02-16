@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../../types.ts';
 import { db } from '../../services/databaseService.ts';
-import { Mail, Lock, LogIn, ChevronRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, ChevronRight, AlertCircle, UserPlus } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -37,7 +37,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     if (!user) {
       // Auto-create user if not found (simulating first-time Google sign-in)
-      // Generic names used instead of specific people
       user = {
         id: Math.random().toString(36).substr(2, 9),
         name: selectedRole === UserRole.PATIENT ? 'New Patient' : (selectedRole === UserRole.ADMIN ? 'Admin User' : 'Doctor User'),
@@ -109,12 +108,22 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="relative my-10">
+        <div className="mt-6 text-center">
+          <button 
+            onClick={() => navigate('/register-patient')}
+            className="flex items-center justify-center space-x-2 w-full py-3 bg-slate-50 border border-slate-100 text-slate-600 rounded-2xl text-xs font-bold hover:bg-slate-100 transition-all"
+          >
+            <UserPlus size={16} />
+            <span>New patient? Create Account</span>
+          </button>
+        </div>
+
+        <div className="relative my-8">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-slate-100"></div>
           </div>
           <div className="relative flex justify-center">
-            <span className="px-4 bg-white text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Or continue with</span>
+            <span className="px-4 bg-white text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Or quick login</span>
           </div>
         </div>
 
@@ -151,7 +160,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               onClick={() => navigate('/register-doctor')}
               className="text-blue-600 font-bold hover:underline inline-flex items-center"
             >
-              Apply to join <ChevronRight size={14} className="ml-0.5" />
+              Doctor Application <ChevronRight size={14} className="ml-0.5" />
             </button>
           </p>
         </div>

@@ -7,19 +7,37 @@ const DB_KEYS = {
   BOOKINGS: 'medisync_db_bookings',
 };
 
+// Simulated hashing for security demo
+const hashPassword = (password: string) => btoa(`salt_${password}_hash`);
+
 class DatabaseService {
   private getStorage<T>(key: string): T[] {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      console.error(`Error reading ${key} from storage`, e);
+      return [];
+    }
   }
 
   private setStorage<T>(key: string, data: T[]): void {
-    localStorage.setItem(key, JSON.stringify(data));
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.error(`Error writing ${key} to storage`, e);
+    }
   }
 
   // --- User Operations ---
   getUsers(): User[] {
     return this.getStorage<User>(DB_KEYS.USERS);
+  }
+
+  getDoctors(activeOnly: boolean = true): User[] {
+    return this.getUsers().filter(u => 
+      u.role === UserRole.DOCTOR && (!activeOnly || u.profileActive)
+    );
   }
 
   getUserByEmail(email: string): User | undefined {
@@ -28,11 +46,11 @@ class DatabaseService {
 
   authenticate(email: string, password?: string): User | null {
     const user = this.getUserByEmail(email);
-    if (!user) return null;
+    if (!user || !password) return null;
     
-    // For this demo, we check password if it was provided during registration
-    // If no password exists in DB, we allow login (for legacy seeded users)
-    if (user.password && user.password !== password) return null;
+    const hashedInput = hashPassword(password);
+    // Support legacy plain-text (if any) or hashed match
+    if (user.password !== hashedInput && user.password !== password) return null;
     
     return user;
   }
@@ -40,10 +58,16 @@ class DatabaseService {
   saveUser(user: User): void {
     const users = this.getUsers();
     const index = users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    
+    const userToSave = {
+      ...user,
+      password: user.password ? (user.password.startsWith('salt_') ? user.password : hashPassword(user.password)) : undefined
+    };
+
     if (index > -1) {
-      users[index] = { ...users[index], ...user };
+      users[index] = { ...users[index], ...userToSave };
     } else {
-      users.push(user);
+      users.push(userToSave);
     }
     this.setStorage(DB_KEYS.USERS, users);
   }
@@ -82,10 +106,7 @@ class DatabaseService {
     this.setStorage(DB_KEYS.BOOKINGS, bookings);
   }
 
-  // Initial Seed for Admin & Default Patient
   seedDatabase() {
-    const users = this.getUsers();
-    
     const adminEmail = 'admin@example.com';
     if (!this.getUserByEmail(adminEmail)) {
       this.saveUser({
@@ -115,4 +136,4 @@ class DatabaseService {
 }
 
 export const db = new DatabaseService();
-db.seedDatabase(); // Ensure initial accounts exist
+db.seedDatabase();
