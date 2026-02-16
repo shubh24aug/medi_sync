@@ -1,0 +1,8 @@
+{
+  "name": "MediSync",
+  "description": "A comprehensive healthcare platform connecting patients and doctors with AI-powered medical record analysis, integrated scheduling, and secure consultations.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
