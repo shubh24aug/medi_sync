@@ -7,37 +7,22 @@ const DB_KEYS = {
   BOOKINGS: 'medisync_db_bookings',
 };
 
-// Simulated hashing for security demo
-const hashPassword = (password: string) => btoa(`salt_${password}_hash`);
+const hash = (pw: string) => btoa(`m_sync_${pw}_v1`);
 
 class DatabaseService {
-  private getStorage<T>(key: string): T[] {
-    try {
-      const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : [];
-    } catch (e) {
-      console.error(`Error reading ${key} from storage`, e);
-      return [];
-    }
+  private read<T>(key: string): T[] {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
   }
 
-  private setStorage<T>(key: string, data: T[]): void {
-    try {
-      localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-      console.error(`Error writing ${key} to storage`, e);
-    }
+  private write<T>(key: string, data: T[]): void {
+    localStorage.setItem(key, JSON.stringify(data));
   }
 
-  // --- User Operations ---
-  getUsers(): User[] {
-    return this.getStorage<User>(DB_KEYS.USERS);
-  }
-
-  getDoctors(activeOnly: boolean = true): User[] {
-    return this.getUsers().filter(u => 
-      u.role === UserRole.DOCTOR && (!activeOnly || u.profileActive)
-    );
+  getUsers(): User[] { return this.read<User>(DB_KEYS.USERS); }
+  
+  getDoctors(activeOnly = true): User[] {
+    return this.getUsers().filter(u => u.role === UserRole.DOCTOR && (!activeOnly || u.profileActive));
   }
 
   getUserByEmail(email: string): User | undefined {
@@ -47,93 +32,58 @@ class DatabaseService {
   authenticate(email: string, password?: string): User | null {
     const user = this.getUserByEmail(email);
     if (!user || !password) return null;
-    
-    const hashedInput = hashPassword(password);
-    // Support legacy plain-text (if any) or hashed match
-    if (user.password !== hashedInput && user.password !== password) return null;
-    
-    return user;
+    const h = hash(password);
+    return (user.password === h || user.password === password) ? user : null;
   }
 
   saveUser(user: User): void {
     const users = this.getUsers();
-    const index = users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
-    
-    const userToSave = {
-      ...user,
-      password: user.password ? (user.password.startsWith('salt_') ? user.password : hashPassword(user.password)) : undefined
-    };
-
-    if (index > -1) {
-      users[index] = { ...users[index], ...userToSave };
-    } else {
-      users.push(userToSave);
-    }
-    this.setStorage(DB_KEYS.USERS, users);
+    const idx = users.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+    const data = { ...user, password: user.password && !user.password.startsWith('m_sync_') ? hash(user.password) : user.password };
+    if (idx > -1) users[idx] = { ...users[idx], ...data };
+    else users.push(data);
+    this.write(DB_KEYS.USERS, users);
   }
 
-  updateDoctorStatus(doctorId: string, active: boolean): void {
+  updateDoctorStatus(id: string, active: boolean): void {
     const users = this.getUsers();
-    const index = users.findIndex(u => u.id === doctorId);
-    if (index > -1) {
-      users[index].profileActive = active;
-      this.setStorage(DB_KEYS.USERS, users);
+    const idx = users.findIndex(u => u.id === id);
+    if (idx > -1) {
+      users[idx].profileActive = active;
+      this.write(DB_KEYS.USERS, users);
     }
   }
 
-  // --- Record Operations ---
   getRecords(patientId: string): MedicalRecord[] {
-    return this.getStorage<MedicalRecord>(DB_KEYS.RECORDS).filter(r => r.patientId === patientId);
+    return this.read<MedicalRecord>(DB_KEYS.RECORDS).filter(r => r.patientId === patientId);
   }
 
   saveRecord(record: MedicalRecord): void {
-    const records = this.getStorage<MedicalRecord>(DB_KEYS.RECORDS);
+    const records = this.read<MedicalRecord>(DB_KEYS.RECORDS);
     records.unshift(record);
-    this.setStorage(DB_KEYS.RECORDS, records);
+    this.write(DB_KEYS.RECORDS, records);
   }
 
-  // --- Booking Operations ---
   getBookings(userId: string, role: UserRole): Consultation[] {
-    const bookings = this.getStorage<Consultation>(DB_KEYS.BOOKINGS);
-    if (role === UserRole.PATIENT) return bookings.filter(b => b.patientId === userId);
-    if (role === UserRole.DOCTOR) return bookings.filter(b => b.doctorId === userId);
-    return bookings;
+    const b = this.read<Consultation>(DB_KEYS.BOOKINGS);
+    return role === UserRole.PATIENT ? b.filter(x => x.patientId === userId) : b.filter(x => x.doctorId === userId);
   }
 
   saveBooking(booking: Consultation): void {
-    const bookings = this.getStorage<Consultation>(DB_KEYS.BOOKINGS);
-    bookings.unshift(booking);
-    this.setStorage(DB_KEYS.BOOKINGS, bookings);
+    const b = this.read<Consultation>(DB_KEYS.BOOKINGS);
+    b.unshift(booking);
+    this.write(DB_KEYS.BOOKINGS, b);
   }
 
-  seedDatabase() {
-    const adminEmail = 'admin@example.com';
-    if (!this.getUserByEmail(adminEmail)) {
-      this.saveUser({
-        id: 'admin-1',
-        name: 'System Admin',
-        email: adminEmail,
-        password: 'admin',
-        role: UserRole.ADMIN,
-        profileActive: true,
-        avatar: 'AD'
-      });
+  seed() {
+    if (!this.getUserByEmail('admin@example.com')) {
+      this.saveUser({ id: 'a1', name: 'Admin', email: 'admin@example.com', password: 'admin', role: UserRole.ADMIN, profileActive: true, avatar: 'AD' });
     }
-
-    const patientEmail = 'patient@example.com';
-    if (!this.getUserByEmail(patientEmail)) {
-      this.saveUser({
-        id: 'patient-1',
-        name: 'John Doe',
-        email: patientEmail,
-        password: 'password',
-        role: UserRole.PATIENT,
-        profileActive: true,
-        avatar: 'JD'
-      });
+    if (!this.getUserByEmail('patient@example.com')) {
+      this.saveUser({ id: 'p1', name: 'John Doe', email: 'patient@example.com', password: 'password', role: UserRole.PATIENT, profileActive: true, avatar: 'JD' });
     }
   }
 }
 
 export const db = new DatabaseService();
-db.seedDatabase();
+db.seed();
