@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, MedicalRecord, HealthDataPoint } from '../../types.ts';
+import { User, MedicalRecord, HealthDataPoint, UserRole } from '../../types.ts';
 import { analyzeMedicalRecord } from '../../services/geminiService.ts';
+import { db } from '../../services/databaseService.ts';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { 
   Upload, FileText, Activity, Heart, Moon, Plus, 
@@ -19,6 +20,10 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
   const [showBookings, setShowBookings] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'done'>('idle');
 
+  useEffect(() => {
+    setRecords(db.getRecords(user.id));
+  }, [user.id]);
+
   const [healthData] = useState<HealthDataPoint[]>([
     { date: '2023-10-01', steps: 8400, heartRate: 72, sleepHours: 7.2 },
     { date: '2023-10-02', steps: 9200, heartRate: 70, sleepHours: 6.8 },
@@ -26,12 +31,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
     { date: '2023-10-04', steps: 11000, heartRate: 68, sleepHours: 7.5 },
     { date: '2023-10-05', steps: 9500, heartRate: 71, sleepHours: 7.1 },
   ]);
-
-  const mockBookings = [
-    { id: 'b1', doctor: 'Dr. Sarah Smith', date: 'Oct 25, 2023', time: '10:30 AM', status: 'Confirmed' },
-    { id: 'b2', doctor: 'Dr. Michael Chen', date: 'Oct 28, 2023', time: '02:00 PM', status: 'Pending' },
-    { id: 'b3', doctor: 'Dr. Sarah Smith', date: 'Oct 10, 2023', time: '11:00 AM', status: 'Completed' },
-  ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
@@ -51,6 +50,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
         keyFindings: analysis.keyFindings,
         originalContent: mockContent
       };
+      db.saveRecord(newRecord);
       setRecords(prev => [newRecord, ...prev]);
     } catch (err) {
       console.error("Upload error:", err);
@@ -68,6 +68,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
       setTimeout(() => setShareStatus('idle'), 3000);
     }, 1500);
   };
+
+  const bookings = db.getBookings(user.id, UserRole.PATIENT);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -99,7 +101,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
               </h2>
               <div className="flex items-center px-3 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full uppercase tracking-widest border border-green-100">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                Google Fit Synced
+                Persistent Storage Sync
               </div>
             </div>
             
@@ -200,7 +202,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
             </div>
             <h3 className="font-bold text-2xl mb-4 relative z-10">Sync Records</h3>
             <p className="text-sm text-indigo-50 leading-relaxed mb-10 opacity-90 relative z-10">
-              Instant share your health summary and latest AI-analyzed reports with your consultant for a data-driven diagnosis.
+              Your data is stored in a local persistent database. Sharing updates your global profile for consultants.
             </p>
             <button 
               onClick={handleShare}
@@ -216,8 +218,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
                 <CheckCircle size={20} />
               ) : <Share2 size={20} />}
               <span>
-                {shareStatus === 'sharing' ? 'Preparing Data...' : 
-                 shareStatus === 'done' ? 'Shared Successfully' : 'Share with Provider'}
+                {shareStatus === 'sharing' ? 'Updating Database...' : 
+                 shareStatus === 'done' ? 'Sync Complete' : 'Sync to Provider'}
               </span>
             </button>
           </div>
@@ -225,21 +227,29 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
             <h3 className="font-bold text-slate-900 mb-8 flex items-center">
               <Calendar className="w-5 h-5 mr-3 text-blue-600" />
-              Upcoming Session
+              Recent Schedule
             </h3>
             <div className="space-y-6">
-              <div className="flex items-center space-x-4 p-5 rounded-3xl bg-slate-50 group hover:bg-blue-50/50 transition-all border border-transparent hover:border-blue-100">
-                <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-blue-600 text-lg font-bold shadow-sm group-hover:scale-110 transition-transform">SS</div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Dr. Sarah Smith</p>
-                  <p className="text-xs text-slate-500 font-semibold mt-0.5">Oct 25 • 10:30 AM</p>
-                </div>
-              </div>
+              {bookings.length > 0 ? (
+                bookings.slice(0, 1).map(b => (
+                  <div key={b.id} className="flex items-center space-x-4 p-5 rounded-3xl bg-slate-50 group hover:bg-blue-50/50 transition-all border border-transparent hover:border-blue-100">
+                    <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-blue-600 text-lg font-bold shadow-sm group-hover:scale-110 transition-transform">
+                      {b.doctorId.substring(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Specialist Consultation</p>
+                      <p className="text-xs text-slate-500 font-semibold mt-0.5">{b.date} • {b.slot}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No Sessions</div>
+              )}
               <button 
                 onClick={() => setShowBookings(true)}
                 className="w-full text-center text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors tracking-widest uppercase py-2"
               >
-                View History & Schedule
+                View History ({bookings.length})
               </button>
             </div>
           </div>
@@ -257,23 +267,24 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ user }) => {
               </button>
             </div>
             <div className="p-8 max-h-[60vh] overflow-y-auto space-y-4">
-              {mockBookings.map(b => (
+              {bookings.map(b => (
                 <div key={b.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-200 bg-white transition-all group cursor-default">
                   <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-bold text-slate-500 text-sm">{b.doctor.split(' ').map(n => n[0]).join('')}</div>
+                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-bold text-slate-500 text-sm">{b.doctorId.substring(0,2).toUpperCase()}</div>
                     <div>
-                      <p className="font-bold text-slate-900 text-sm">{b.doctor}</p>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{b.date} • {b.time}</p>
+                      <p className="font-bold text-slate-900 text-sm">Consultation</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{b.date} • {b.slot}</p>
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                    b.status === 'Confirmed' ? 'bg-green-100 text-green-700' :
-                    b.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                    b.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                    b.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                   }`}>
                     {b.status}
                   </span>
                 </div>
               ))}
+              {bookings.length === 0 && <p className="text-center py-10 text-slate-400 font-bold">No bookings found in database.</p>}
             </div>
             <div className="p-8 bg-slate-50/50 border-t border-slate-50">
               <Link 

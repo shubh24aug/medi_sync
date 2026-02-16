@@ -9,6 +9,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string; // Added for form-based login
   role: UserRole;
   profileActive?: boolean;
   avatar?: string;
